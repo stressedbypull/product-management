@@ -8,6 +8,7 @@ import (
 
 	"github.com/mytheresa/go-hiring-challenge/app/catalog/mocks"
 	"github.com/mytheresa/go-hiring-challenge/models"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,6 +20,11 @@ func TestHandlerGetProducts(t *testing.T) {
 	)
 
 	var expectedResp Response
+	repoProducts := []models.Product{
+		{Code: "P001", Price: decimal.NewFromFloat(10.0)},
+		{Code: "P002", Price: decimal.NewFromFloat(20.0)},
+	}
+
 	expectedResp.Products = []Product{
 		{Code: "P001", Price: 10.0},
 		{Code: "P002", Price: 20.0},
@@ -30,7 +36,7 @@ func TestHandlerGetProducts(t *testing.T) {
 
 	t.Run("successful retrieval of products", func(t *testing.T) {
 		mockProduct := new(mocks.MockProductRepo)
-		mockProduct.On(GetAllProducts).Return(expectedResp.Products, nil)
+		mockProduct.On(GetAllProducts).Return(repoProducts, nil)
 
 		handler := NewCatalogHandler(mockProduct)
 
