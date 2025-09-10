@@ -1,9 +1,10 @@
 package catalog
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 
+	"github.com/mytheresa/go-hiring-challenge/app/api"
 	"github.com/mytheresa/go-hiring-challenge/models"
 )
 
@@ -17,19 +18,20 @@ type Product struct {
 }
 
 type CatalogHandler struct {
-	repo *models.ProductsRepository
+	repo models.ProductInterface
 }
 
-func NewCatalogHandler(r *models.ProductsRepository) *CatalogHandler {
+func NewCatalogHandler(r models.ProductInterface) *CatalogHandler {
 	return &CatalogHandler{
 		repo: r,
 	}
 }
 
-func (h *CatalogHandler) HandleGet(w http.ResponseWriter, r *http.Request) {
+func (h *CatalogHandler) HandleRetrieveProducts(w http.ResponseWriter, r *http.Request) {
 	res, err := h.repo.GetAllProducts()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Handle different types of errors with proper HTTP status codes
+		h.handleError(w, err)
 		return
 	}
 
@@ -43,14 +45,25 @@ func (h *CatalogHandler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return the products as a JSON response
-	w.Header().Set("Content-Type", "application/json")
-
 	response := Response{
 		Products: products,
 	}
 
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	api.OKResponse(w, response)
+}
+
+// handleError checks for specific error types and returns appropriate HTTP status codes
+func (h *CatalogHandler) handleError(w http.ResponseWriter, err error) {
+	if errors.Is(err, models.ErrProductNotFound) {
+		api.ErrorResponse(w, http.StatusNotFound, err.Error())
 		return
 	}
+
+	if errors.Is(err, models.ErrDatabaseConnection) {
+		api.ErrorResponse(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+
+	// For all other errors
+	api.ErrorResponse(w, http.StatusInternalServerError, err.Error())
 }
