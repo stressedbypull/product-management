@@ -3,6 +3,7 @@ package catalog
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/mytheresa/go-hiring-challenge/app/api"
 	"github.com/mytheresa/go-hiring-challenge/models"
@@ -28,16 +29,18 @@ type ErrorResponse struct {
 
 // ProductsResponse represents the response for the /catalog endpoint
 type ProductsResponse struct {
+	Total    int       `json:"total"`
 	Products []Product `json:"products"`
 }
 
 // CategoriesResponse represents the response for the /categories endpoint
 type CategoriesResponse struct {
+	Total      int        `json:"total"`
 	Categories []Category `json:"categories"`
 }
 
 type CatalogRepository interface {
-	GetAllProducts() ([]models.Product, error)
+	GetAllProducts(p models.ProductQueryParams) ([]models.Product, error)
 	GetAllCategories() ([]models.Category, error)
 }
 
@@ -64,7 +67,8 @@ func NewCatalogHandler(r CatalogRepository) *CatalogHandler {
 }
 
 func (h *CatalogHandler) HandleRetrieveProducts(w http.ResponseWriter, r *http.Request) {
-	res, err := h.repo.GetAllProducts()
+	queryParams := parseQueryParams(r)
+	res, err := h.repo.GetAllProducts(queryParams)
 	if err != nil {
 		// Handle different types of errors with proper HTTP status codes
 		h.handleError(w, err)
@@ -87,6 +91,7 @@ func (h *CatalogHandler) HandleRetrieveProducts(w http.ResponseWriter, r *http.R
 
 	// Return the products as a JSON response
 	response := ProductsResponse{
+		Total:    len(products),
 		Products: products,
 	}
 
@@ -113,20 +118,22 @@ func (h *CatalogHandler) HandleRetrieveCategories(w http.ResponseWriter, r *http
 
 	// Return the products as a JSON response
 	response := CategoriesResponse{
+		Total:      len(categories),
 		Categories: categories,
 	}
 
 	api.OKResponse(w, response)
 }
 
-func (s *CatalogService) GetAllProducts() ([]models.Product, error) {
-	return s.ProductsRepo.GetAllProducts()
+func (s *CatalogService) GetAllProducts(params models.ProductQueryParams) ([]models.Product, error) {
+	return s.ProductsRepo.GetAllProducts(params)
 }
 
 func (s *CatalogService) GetAllCategories() ([]models.Category, error) {
 	return s.CategoryRepo.GetAllCategories()
 }
 
+// HELPERS
 // handleError checks for specific error types and returns appropriate HTTP status codes
 func (h *CatalogHandler) handleError(w http.ResponseWriter, err error) {
 	if errors.Is(err, models.ErrProductNotFound) || errors.Is(err, models.ErrCategoryNotFound) {
@@ -141,4 +148,45 @@ func (h *CatalogHandler) handleError(w http.ResponseWriter, err error) {
 
 	// For all other errors
 	api.ErrorResponse(w, http.StatusInternalServerError, err.Error())
+}
+
+func parseQueryParams(r *http.Request) models.ProductQueryParams {
+	queryParams := models.ProductQueryParams{}
+
+	limitParam := r.URL.Query().Get("limit")
+	offsetParam := r.URL.Query().Get("offset")
+	categoryName := r.URL.Query().Get("category")
+	priceParam := r.URL.Query().Get("price")
+
+	queryParams.Limit = DefaultPageSize
+
+	// Parse and validate limit
+	if limitParam != "" {
+		limit, err := strconv.Atoi(limitParam)
+		if err == nil {
+			if limit < MinPageSize {
+				queryParams.Limit = MinPageSize
+			} else if limit > MaxPageSize {
+				queryParams.Limit = MaxPageSize
+			} else {
+				queryParams.Limit = limit
+			}
+		}
+	}
+
+	offset, err := strconv.Atoi(offsetParam)
+	if err != nil || offsetParam == "" || offset < 0 {
+		queryParams.Offset = DefaultOffset
+	} else {
+		queryParams.Offset = max(offset, 0)
+	}
+
+	queryParams.PriceMax = maxPrice
+	if priceParam != "" {
+		queryParams.PriceMax, _ = strconv.ParseFloat(priceParam, 64)
+	}
+
+	queryParams.CategoryName = categoryName
+
+	return queryParams
 }

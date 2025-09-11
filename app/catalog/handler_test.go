@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/mytheresa/go-hiring-challenge/app/catalog/mocks"
@@ -19,21 +20,64 @@ func TestHandlerGetProducts(t *testing.T) {
 		//CreateProduct = "CreateProduct"
 	)
 
-	var expectedResp ProductsResponse
 	repoProducts := []models.Product{
 		{Code: "P001", Price: decimal.NewFromFloat(10.0), Category: models.Category{ID: 1, Code: "C001", Name: "Category 1"}},
 		{Code: "P002", Price: decimal.NewFromFloat(20.0), Category: models.Category{ID: 2, Code: "C002", Name: "Category 2"}},
 	}
 
-	expectedResp.Products = []Product{
-		{Code: "P001", Price: 10.0, Category: Category{Code: "C001", Name: "Category 1"}},
-		{Code: "P002", Price: 20.0, Category: Category{Code: "C002", Name: "Category 2"}},
+	expectedResp := ProductsResponse{
+		Total: len(repoProducts),
+		Products: []Product{
+			{Code: "P001", Price: 10.0, Category: Category{ID: 1, Code: "C001", Name: "Category 1"}},
+			{Code: "P002", Price: 20.0, Category: Category{ID: 2, Code: "C002", Name: "Category 2"}},
+		},
 	}
 
-	t.Run("successful retrieval of products", func(t *testing.T) {
+	t.Run("successful retrieval of products, with limit and offset", func(t *testing.T) {
 		mockProduct := new(mocks.MockCatalogRepository)
+		params := models.ProductQueryParams{
+			Limit:    10,
+			Offset:   20,
+			PriceMax: 10000, // default max price
+		}
+
 		//call to the db
-		mockProduct.On(GetAllProducts).Return(repoProducts, nil)
+		mockProduct.On(GetAllProducts, params).Return(repoProducts, nil)
+
+		handler := NewCatalogHandler(mockProduct)
+
+		//make request
+		endpoint := EndpointCatalog + "?limit=" + strconv.Itoa(params.Limit) + "&offset=" + strconv.Itoa(params.Offset)
+		req := httptest.NewRequest(http.MethodGet, endpoint, nil)
+		recorder := httptest.NewRecorder()
+		handler.HandleRetrieveProducts(recorder, req)
+
+		//assert results, 200 OK
+		resp := recorder.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		//check response body is as expected
+		var actualResp ProductsResponse
+		err := json.NewDecoder(resp.Body).Decode(&actualResp)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedResp, actualResp)
+		assert.Equal(t, len(expectedResp.Products), actualResp.Total)
+		//check that the mock was called
+		t.Cleanup(func() {
+			mockProduct.AssertExpectations(t)
+		})
+	})
+
+	t.Run("successful retrieval limit and offset not specified, success", func(t *testing.T) {
+		mockProduct := new(mocks.MockCatalogRepository)
+		params := models.ProductQueryParams{
+			Limit:    DefaultPageSize,
+			Offset:   DefaultOffset,
+			PriceMax: 10000, // default max price
+		}
+
+		//call to the db
+		mockProduct.On(GetAllProducts, params).Return(repoProducts, nil)
 
 		handler := NewCatalogHandler(mockProduct)
 
@@ -59,9 +103,13 @@ func TestHandlerGetProducts(t *testing.T) {
 
 	t.Run("product not found error", func(t *testing.T) {
 		notFoundErr := models.ErrProductNotFound
-
+		params := models.ProductQueryParams{
+			Limit:    DefaultPageSize,
+			Offset:   DefaultOffset,
+			PriceMax: 10000, // default max price
+		}
 		mockProduct := new(mocks.MockCatalogRepository)
-		mockProduct.On(GetAllProducts).Return(nil, notFoundErr)
+		mockProduct.On(GetAllProducts, params).Return(nil, notFoundErr)
 
 		handler := NewCatalogHandler(mockProduct)
 

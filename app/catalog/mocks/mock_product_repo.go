@@ -9,8 +9,8 @@ type MockCatalogRepository struct {
 	mock.Mock
 }
 
-func (m *MockCatalogRepository) GetAllProducts() ([]models.Product, error) {
-	args := m.Called()
+func (m *MockCatalogRepository) GetAllProducts(params models.ProductQueryParams) ([]models.Product, error) {
+	args := m.Called(params)
 
 	var products []models.Product
 	if args.Get(0) != nil {
