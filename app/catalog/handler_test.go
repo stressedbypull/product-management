@@ -12,6 +12,7 @@ import (
 	"github.com/mytheresa/go-hiring-challenge/models"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestHandlerGetProducts(t *testing.T) {
@@ -216,7 +217,7 @@ func TestHandlerGetCategories(t *testing.T) {
 	//Available Handlers
 	var (
 		GetAllCategories = "GetAllCategories"
-		//CreateCategory = "CreateCategory"
+		CreateCategory   = "CreateCategory"
 	)
 
 	repoCategories := []models.Category{
@@ -258,6 +259,31 @@ func TestHandlerGetCategories(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, expectedResp, actualResp)
 		//check that the mock was called
+		t.Cleanup(func() {
+			mockProduct.AssertExpectations(t)
+		})
+	})
+
+	t.Run("not implemented", func(t *testing.T) {
+		mockProduct := new(mocks.MockCatalogRepository)
+
+		mockProduct.On(CreateCategory, mock.Anything, mock.Anything).Return(nil, models.ErrNotImplemented)
+		handler := NewCatalogHandler(mockProduct)
+
+		req := httptest.NewRequest(http.MethodPost, "/categories", nil)
+		recorder := httptest.NewRecorder()
+		handler.HandleCreateCategory(recorder, req)
+
+		// Assert results - should be 501 Not Implemented
+		resp := recorder.Result()
+		assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+
+		var actualResp ErrorResponse
+		err := json.NewDecoder(resp.Body).Decode(&actualResp)
+		assert.NoError(t, err)
+		assert.Contains(t, actualResp.Error, "not implemented")
+
+		// Check that the mock was called
 		t.Cleanup(func() {
 			mockProduct.AssertExpectations(t)
 		})

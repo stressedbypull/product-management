@@ -42,6 +42,7 @@ type CategoriesResponse struct {
 type CatalogRepository interface {
 	GetAllProducts(p models.ProductQueryParams) ([]models.Product, error)
 	GetAllCategories() ([]models.Category, error)
+	CreateCategory(code, name string) (*models.Category, error)
 }
 
 type CatalogService struct {
@@ -125,6 +126,19 @@ func (h *CatalogHandler) HandleRetrieveCategories(w http.ResponseWriter, r *http
 	api.OKResponse(w, response)
 }
 
+func (h *CatalogHandler) HandleCreateCategory(w http.ResponseWriter, r *http.Request) {
+	_, err := h.repo.CreateCategory("", "")
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	api.ErrorResponse(w, http.StatusNotImplemented, "not implemented")
+}
+
+func (s *CatalogService) CreateCategory(code, name string) (*models.Category, error) {
+	return nil, models.ErrNotImplemented
+}
+
 func (s *CatalogService) GetAllProducts(params models.ProductQueryParams) ([]models.Product, error) {
 	return s.ProductsRepo.GetAllProducts(params)
 }
@@ -143,6 +157,18 @@ func (h *CatalogHandler) handleError(w http.ResponseWriter, err error) {
 
 	if errors.Is(err, models.ErrDatabaseConnection) {
 		api.ErrorResponse(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	if errors.Is(err, models.ErrInvalidQueryParam) {
+		api.ErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if errors.Is(err, models.ErrCreationCategory) {
+		api.ErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if errors.Is(err, models.ErrNotImplemented) {
+		api.ErrorResponse(w, http.StatusNotImplemented, err.Error())
 		return
 	}
 
