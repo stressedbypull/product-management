@@ -13,7 +13,7 @@ var (
 )
 
 type CategoryInterface interface {
-	// Define methods for category operations
+	GetAllCategories() ([]Category, error)
 }
 
 type CategoryRepository struct {
@@ -24,6 +24,14 @@ func NewCategoryRepository(db *gorm.DB) *CategoryRepository {
 	return &CategoryRepository{
 		db: db,
 	}
+}
+
+func (r *CategoryRepository) GetAllCategories() ([]Category, error) {
+	var categories []Category
+	if err := r.db.Find(&categories).Error; err != nil {
+		return nil, r.handleGormError(err)
+	}
+	return categories, nil
 }
 
 // / Helpers

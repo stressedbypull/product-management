@@ -5,11 +5,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type MockProductRepo struct {
+type MockCatalogRepository struct {
 	mock.Mock
 }
 
-func (m *MockProductRepo) GetAllProducts() ([]models.Product, error) {
+func (m *MockCatalogRepository) GetAllProducts() ([]models.Product, error) {
 	args := m.Called()
 
 	var products []models.Product

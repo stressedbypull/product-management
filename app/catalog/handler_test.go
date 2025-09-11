@@ -19,23 +19,20 @@ func TestHandlerGetProducts(t *testing.T) {
 		//CreateProduct = "CreateProduct"
 	)
 
-	var expectedResp Response
+	var expectedResp ProductsResponse
 	repoProducts := []models.Product{
-		{Code: "P001", Price: decimal.NewFromFloat(10.0)},
-		{Code: "P002", Price: decimal.NewFromFloat(20.0)},
+		{Code: "P001", Price: decimal.NewFromFloat(10.0), Category: models.Category{ID: 1, Code: "C001", Name: "Category 1"}},
+		{Code: "P002", Price: decimal.NewFromFloat(20.0), Category: models.Category{ID: 2, Code: "C002", Name: "Category 2"}},
 	}
 
 	expectedResp.Products = []Product{
-		{Code: "P001", Price: 10.0},
-		{Code: "P002", Price: 20.0},
-	}
-
-	type ErrorResponse struct {
-		Error string `json:"error"`
+		{Code: "P001", Price: 10.0, Category: Category{Code: "C001", Name: "Category 1"}},
+		{Code: "P002", Price: 20.0, Category: Category{Code: "C002", Name: "Category 2"}},
 	}
 
 	t.Run("successful retrieval of products", func(t *testing.T) {
-		mockProduct := new(mocks.MockProductRepo)
+		mockProduct := new(mocks.MockCatalogRepository)
+		//call to the db
 		mockProduct.On(GetAllProducts).Return(repoProducts, nil)
 
 		handler := NewCatalogHandler(mockProduct)
@@ -49,7 +46,7 @@ func TestHandlerGetProducts(t *testing.T) {
 		resp := recorder.Result()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		//check response body is as expected
-		var actualResp Response
+		var actualResp ProductsResponse
 		err := json.NewDecoder(resp.Body).Decode(&actualResp)
 
 		assert.NoError(t, err)
@@ -63,7 +60,7 @@ func TestHandlerGetProducts(t *testing.T) {
 	t.Run("product not found error", func(t *testing.T) {
 		notFoundErr := models.ErrProductNotFound
 
-		mockProduct := new(mocks.MockProductRepo)
+		mockProduct := new(mocks.MockCatalogRepository)
 		mockProduct.On(GetAllProducts).Return(nil, notFoundErr)
 
 		handler := NewCatalogHandler(mockProduct)
@@ -76,11 +73,92 @@ func TestHandlerGetProducts(t *testing.T) {
 		resp := recorder.Result()
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
+		var actualResp ErrorResponse
+		// Check response body
+		err := json.NewDecoder(resp.Body).Decode(&actualResp)
+		assert.NoError(t, err)
+		assert.Contains(t, actualResp.Error, "product not found")
+
+		// Check that the mock was called
+		t.Cleanup(func() {
+			mockProduct.AssertExpectations(t)
+		})
+	})
+
+}
+
+func TestHandlerGetCategories(t *testing.T) {
+	//Available Handlers
+	var (
+		GetAllCategories = "GetAllCategories"
+		//CreateCategory = "CreateCategory"
+	)
+
+	repoCategories := []models.Category{
+		{ID: 1, Code: "C001", Name: "Category 1"},
+		{ID: 2, Code: "C002", Name: "Category 2"},
+	}
+
+	// 2. Use a dedicated response struct
+	expectedResp := CategoriesResponse{
+		Categories: []Category{
+			{ID: 1, Code: "C001", Name: "Category 1"},
+			{ID: 2, Code: "C002", Name: "Category 2"},
+		},
+	}
+
+	type ErrorResponse struct {
+		Error string `json:"error"`
+	}
+
+	t.Run("successful retrieval of Categories", func(t *testing.T) {
+		mockProduct := new(mocks.MockCatalogRepository)
+		//call to the db
+		mockProduct.On(GetAllCategories).Return(repoCategories, nil)
+
+		handler := NewCatalogHandler(mockProduct)
+
+		//make request
+		req := httptest.NewRequest(http.MethodGet, "/categories", nil)
+		recorder := httptest.NewRecorder()
+		handler.HandleRetrieveCategories(recorder, req)
+
+		//assert results, 200 OK
+		resp := recorder.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		//check response body is as expected
+		var actualResp CategoriesResponse
+		err := json.NewDecoder(resp.Body).Decode(&actualResp)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedResp, actualResp)
+		//check that the mock was called
+		t.Cleanup(func() {
+			mockProduct.AssertExpectations(t)
+		})
+	})
+
+	t.Run("category not found error", func(t *testing.T) {
+		notFoundErr := models.ErrCategoryNotFound
+
+		mockProduct := new(mocks.MockCatalogRepository)
+		mockProduct.On(GetAllCategories).Return(nil, notFoundErr)
+
+		handler := NewCatalogHandler(mockProduct)
+
+		req := httptest.NewRequest(http.MethodGet, "/categories", nil)
+		recorder := httptest.NewRecorder()
+		handler.HandleRetrieveCategories(recorder, req)
+
+		// Assert results - should be 404 Not Found for this specific error
+		resp := recorder.Result()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
 		// Check response body
 		var actualResp ErrorResponse
 		err := json.NewDecoder(resp.Body).Decode(&actualResp)
 		assert.NoError(t, err)
-		assert.Contains(t, actualResp.Error, "product not found")
+		assert.Contains(t, actualResp.Error, "category not found")
 
 		// Check that the mock was called
 		t.Cleanup(func() {
