@@ -110,12 +110,13 @@ func TestHandlerGetProducts(t *testing.T) {
 		mockProduct.On(GetAllProducts, params).Return(repoProducts, nil)
 
 		handler := NewCatalogHandler(mockProduct)
+		mux := setupTestRouter(handler)
 
 		//make request
 		endpoint := EndpointCatalog + "?limit=" + strconv.Itoa(params.Limit) + "&offset=" + strconv.Itoa(params.Offset)
 		req := httptest.NewRequest(http.MethodGet, endpoint, nil)
 		recorder := httptest.NewRecorder()
-		handler.HandleRetrieveProducts(recorder, req)
+		mux.ServeHTTP(recorder, req)
 
 		//assert results, 200 OK
 		resp := recorder.Result()
@@ -140,11 +141,12 @@ func TestHandlerGetProducts(t *testing.T) {
 		mockProduct.On(GetAllProducts, defaultParams).Return(repoProducts, nil)
 
 		handler := NewCatalogHandler(mockProduct)
+		mux := setupTestRouter(handler)
 
 		//make request
 		req := httptest.NewRequest(http.MethodGet, "/catalog", nil)
 		recorder := httptest.NewRecorder()
-		handler.HandleRetrieveProducts(recorder, req)
+		mux.ServeHTTP(recorder, req)
 
 		//assert results, 200 OK
 		resp := recorder.Result()
@@ -219,6 +221,7 @@ func TestHandlerGetProducts(t *testing.T) {
 		mockProduct.On(GetAllProducts, params).Return(filteredProducts, nil)
 
 		handler := NewCatalogHandler(mockProduct)
+		mux := setupTestRouter(handler)
 
 		//make request
 		baseURL := "/catalog"
@@ -227,7 +230,7 @@ func TestHandlerGetProducts(t *testing.T) {
 		fullURL := baseURL + "?" + queryParams.Encode()
 		req := httptest.NewRequest(http.MethodGet, fullURL, nil)
 		recorder := httptest.NewRecorder()
-		handler.HandleRetrieveProducts(recorder, req)
+		mux.ServeHTTP(recorder, req)
 
 		//assert results, 200 OK
 		resp := recorder.Result()
@@ -253,10 +256,11 @@ func TestHandlerGetProducts(t *testing.T) {
 		mockProduct.On(GetAllProducts, defaultParams).Return(nil, notFoundErr)
 
 		handler := NewCatalogHandler(mockProduct)
+		mux := setupTestRouter(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/catalog", nil)
 		recorder := httptest.NewRecorder()
-		handler.HandleRetrieveProducts(recorder, req)
+		mux.ServeHTTP(recorder, req)
 
 		// Assert results - should be 404 Not Found for this specific error
 		resp := recorder.Result()
@@ -307,11 +311,12 @@ func TestHandlerGetCategories(t *testing.T) {
 		mockProduct.On(GetAllCategories).Return(repoCategories, nil)
 
 		handler := NewCatalogHandler(mockProduct)
+		mux := setupTestRouter(handler)
 
 		//make request
 		req := httptest.NewRequest(http.MethodGet, "/categories", nil)
 		recorder := httptest.NewRecorder()
-		handler.HandleRetrieveCategories(recorder, req)
+		mux.ServeHTTP(recorder, req)
 
 		//assert results, 200 OK
 		resp := recorder.Result()
@@ -335,6 +340,7 @@ func TestHandlerGetCategories(t *testing.T) {
 		mockProduct.On(CreateCategory, "C003", "Category 3").Return(nil, models.ErrNotImplemented)
 
 		handler := NewCatalogHandler(mockProduct)
+		mux := setupTestRouter(handler)
 
 		reqBody := strings.NewReader(`{"code":"C003","name":"Category 3"}`)
 
@@ -343,7 +349,7 @@ func TestHandlerGetCategories(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		recorder := httptest.NewRecorder()
-		handler.HandleCreateCategory(recorder, req)
+		mux.ServeHTTP(recorder, req)
 
 		// Assert results - should be 501 Not Implemented
 		resp := recorder.Result()
@@ -368,6 +374,7 @@ func TestHandlerGetCategories(t *testing.T) {
 		mockProduct.On(CreateCategory, "C003", "Category 3").Return(newCategory, nil)
 
 		handler := NewCatalogHandler(mockProduct)
+		mux := setupTestRouter(handler)
 
 		reqBody := strings.NewReader(`{"code":"C003","name":"Category 3"}`)
 
@@ -376,7 +383,7 @@ func TestHandlerGetCategories(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		recorder := httptest.NewRecorder()
-		handler.HandleCreateCategory(recorder, req)
+		mux.ServeHTTP(recorder, req)
 
 		// Assert results - should be 200 OK
 		resp := recorder.Result()
@@ -402,10 +409,11 @@ func TestHandlerGetCategories(t *testing.T) {
 		mockProduct.On(GetAllCategories).Return(nil, notFoundErr)
 
 		handler := NewCatalogHandler(mockProduct)
+		mux := setupTestRouter(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/categories", nil)
 		recorder := httptest.NewRecorder()
-		handler.HandleRetrieveCategories(recorder, req)
+		mux.ServeHTTP(recorder, req)
 
 		// Assert results - should be 404 Not Found for this specific error
 		resp := recorder.Result()
@@ -423,6 +431,17 @@ func TestHandlerGetCategories(t *testing.T) {
 		})
 	})
 
+}
+
+// HELPERS
+// Helper function to setup consistent router for all tests
+func setupTestRouter(handler *CatalogHandler) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /catalog", handler.HandleRetrieveProducts)
+	mux.HandleFunc("GET /catalog/{code}", handler.HandleRetrieveProductByCode)
+	mux.HandleFunc("GET /categories", handler.HandleRetrieveCategories)
+	mux.HandleFunc("POST /categories", handler.HandleCreateCategory)
+	return mux
 }
 
 // -- IGNORE --

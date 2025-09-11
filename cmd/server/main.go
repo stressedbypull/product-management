@@ -42,11 +42,7 @@ func main() {
 	cat := catalog.NewCatalogHandler(catalogService)
 
 	// Set up routing
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /catalog", cat.HandleRetrieveProducts)
-	mux.HandleFunc("GET /catalog/{code}", cat.HandleRetrieveProductByCode)
-	mux.HandleFunc("GET /categories", cat.HandleRetrieveCategories)
-	mux.HandleFunc("POST /categories", cat.HandleCreateCategory)
+	mux := setupRouter(cat)
 
 	// Set up the HTTP server
 	srv := &http.Server{
@@ -68,4 +64,13 @@ func main() {
 	log.Println("Shutting down server...")
 	srv.Shutdown(ctx)
 	stop()
+}
+
+func setupRouter(cat *catalog.CatalogHandler) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /catalog", cat.HandleRetrieveProducts)
+	mux.HandleFunc("GET /catalog/{code}", cat.HandleRetrieveProductByCode)
+	mux.HandleFunc("GET /categories", cat.HandleRetrieveCategories)
+	mux.HandleFunc("POST /categories", cat.HandleCreateCategory)
+	return mux
 }
