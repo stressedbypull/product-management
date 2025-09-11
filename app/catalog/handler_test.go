@@ -15,11 +15,70 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestHandlerGetProductsByID(t *testing.T) {
+	//Available Handlers
+	var (
+		GetProductByCode = "GetProductByCode"
+	)
+	repoProduct := &models.Product{
+		Code:     "P001",
+		Price:    decimal.NewFromFloat(10.0),
+		Category: models.Category{ID: 1, Code: "C001", Name: "Category 1"},
+		Variants: []models.Variant{
+			{ID: 1, Name: "Small", SKU: "P001-S", Price: decimal.NewFromFloat(8.0)},
+			{ID: 2, Name: "Medium", SKU: "P001-M", Price: decimal.NewFromFloat(10.0)},
+			{ID: 3, Name: "Large", SKU: "P001-L", Price: decimal.NewFromFloat(12.0)},
+		},
+	}
+	expectedResp := Product{
+		Code:  "P001",
+		Price: 10.0,
+		Category: Category{
+			ID:   1,
+			Code: "C001",
+			Name: "Category 1",
+		},
+		Variants: []Variant{
+			{ID: 1, Name: "Small", SKU: "P001-S", Price: 8.0},
+			{ID: 2, Name: "Medium", SKU: "P001-M", Price: 10.0},
+			{ID: 3, Name: "Large", SKU: "P001-L", Price: 12.0},
+		},
+	}
+
+	t.Run("successful retrieval of product by code and its variants", func(t *testing.T) {
+		mockProduct := new(mocks.MockCatalogRepository)
+		mockProduct.On(GetProductByCode, "P001").Return(repoProduct, nil)
+
+		handler := NewCatalogHandler(mockProduct)
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET /catalog/{code}", handler.HandleRetrieveProductByCode)
+
+		//make request
+		req := httptest.NewRequest(http.MethodGet, "/catalog/P001", nil)
+		recorder := httptest.NewRecorder()
+		mux.ServeHTTP(recorder, req)
+
+		//assert results, 200 OK
+		resp := recorder.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		//check response body is as expected
+		var actualResp Product
+		err := json.NewDecoder(resp.Body).Decode(&actualResp)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedResp, actualResp)
+		//check that the mock was called
+		t.Cleanup(func() {
+			mockProduct.AssertExpectations(t)
+		})
+	})
+}
+
 func TestHandlerGetProducts(t *testing.T) {
 	//Available Handlers
 	var (
 		GetAllProducts = "GetAllProducts"
-		//CreateProduct = "CreateProduct"
 	)
 
 	repoProducts := []models.Product{
@@ -35,14 +94,16 @@ func TestHandlerGetProducts(t *testing.T) {
 		},
 	}
 
-	params := models.ProductQueryParams{
-		Limit:    10,
-		Offset:   0,
-		PriceMax: 10000, // default max price
+	defaultParams := models.ProductQueryParams{
+		Limit:        10,
+		Offset:       0,
+		PriceMax:     10000, // default max price
+		CategoryName: "",
 	}
 
 	t.Run("successful retrieval of products, with limit and offset", func(t *testing.T) {
 		mockProduct := new(mocks.MockCatalogRepository)
+		params := defaultParams
 		params.Limit = 1
 		params.Offset = 1
 		//call to the db
@@ -76,7 +137,7 @@ func TestHandlerGetProducts(t *testing.T) {
 		mockProduct := new(mocks.MockCatalogRepository)
 
 		//call to the db
-		mockProduct.On(GetAllProducts, params).Return(repoProducts, nil)
+		mockProduct.On(GetAllProducts, defaultParams).Return(repoProducts, nil)
 
 		handler := NewCatalogHandler(mockProduct)
 
@@ -101,6 +162,7 @@ func TestHandlerGetProducts(t *testing.T) {
 	})
 
 	t.Run("successful retrieval after filtering by price max", func(t *testing.T) {
+		params := defaultParams
 		params.PriceMax = 15.0
 		mockProduct := new(mocks.MockCatalogRepository)
 		filteredProducts := []models.Product{
@@ -119,7 +181,7 @@ func TestHandlerGetProducts(t *testing.T) {
 		handler := NewCatalogHandler(mockProduct)
 
 		//make request
-		req := httptest.NewRequest(http.MethodGet, "/catalog?price_max=15", nil)
+		req := httptest.NewRequest(http.MethodGet, "/catalog?price=15", nil)
 		recorder := httptest.NewRecorder()
 		handler.HandleRetrieveProducts(recorder, req)
 
@@ -140,6 +202,7 @@ func TestHandlerGetProducts(t *testing.T) {
 	})
 
 	t.Run("Successful retrieval with category filter", func(t *testing.T) {
+		params := defaultParams
 		params.CategoryName = "Category 1"
 		mockProduct := new(mocks.MockCatalogRepository)
 		filteredProducts := []models.Product{
@@ -159,9 +222,9 @@ func TestHandlerGetProducts(t *testing.T) {
 
 		//make request
 		baseURL := "/catalog"
-		params := url.Values{}
-		params.Add("category", "Category 1")
-		fullURL := baseURL + "?" + params.Encode()
+		queryParams := url.Values{}
+		queryParams.Add("category", "Category 1")
+		fullURL := baseURL + "?" + queryParams.Encode()
 		req := httptest.NewRequest(http.MethodGet, fullURL, nil)
 		recorder := httptest.NewRecorder()
 		handler.HandleRetrieveProducts(recorder, req)
@@ -187,7 +250,7 @@ func TestHandlerGetProducts(t *testing.T) {
 		notFoundErr := models.ErrProductNotFound
 
 		mockProduct := new(mocks.MockCatalogRepository)
-		mockProduct.On(GetAllProducts, params).Return(nil, notFoundErr)
+		mockProduct.On(GetAllProducts, defaultParams).Return(nil, notFoundErr)
 
 		handler := NewCatalogHandler(mockProduct)
 
@@ -227,6 +290,7 @@ func TestHandlerGetCategories(t *testing.T) {
 
 	// 2. Use a dedicated response struct
 	expectedResp := CategoriesResponse{
+		Total: len(repoCategories),
 		Categories: []Category{
 			{ID: 1, Code: "C001", Name: "Category 1"},
 			{ID: 2, Code: "C002", Name: "Category 2"},

@@ -18,3 +18,13 @@ func (m *MockCatalogRepository) GetAllProducts(params models.ProductQueryParams)
 	}
 	return products, args.Error(1)
 }
+
+func (m *MockCatalogRepository) GetProductByCode(code string) (*models.Product, error) {
+	args := m.Called(code)
+
+	var product *models.Product
+	if args.Get(0) != nil {
+		product = args.Get(0).(*models.Product)
+	}
+	return product, args.Error(1)
+}

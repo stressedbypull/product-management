@@ -12,9 +12,17 @@ import (
 
 // Product represents a product in API responses
 type Product struct {
-	Code     string   `json:"code"`
-	Price    float64  `json:"price"`
-	Category Category `json:"category,omitempty"`
+	Code     string    `json:"code"`
+	Price    float64   `json:"price"`
+	Category Category  `json:"category,omitempty"`
+	Variants []Variant `json:"variants,omitempty"`
+}
+
+type Variant struct {
+	ID    uint    `json:"id"`
+	Name  string  `json:"name"`
+	SKU   string  `json:"sku"`
+	Price float64 `json:"price,omitempty"`
 }
 
 // Category represents a category in API responses
@@ -44,6 +52,7 @@ type CatalogRepository interface {
 	GetAllProducts(p models.ProductQueryParams) ([]models.Product, error)
 	GetAllCategories() ([]models.Category, error)
 	CreateCategory(code, name string) (*models.Category, error)
+	GetProductByCode(code string) (*models.Product, error)
 }
 
 type CatalogService struct {
@@ -97,6 +106,51 @@ func (h *CatalogHandler) HandleRetrieveProducts(w http.ResponseWriter, r *http.R
 		Products: products,
 	}
 
+	api.OKResponse(w, response)
+}
+
+func (h *CatalogHandler) HandleRetrieveProductByCode(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	if code == "" {
+		api.ErrorResponse(w, http.StatusBadRequest, "Missing product code")
+		return
+	}
+
+	product, err := h.repo.GetProductByCode(code)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	// Convert variants
+	variants := make([]Variant, len(product.Variants))
+	for i, v := range product.Variants {
+		price := 0.0
+		if v.Price.BigInt().Sign() > 0 { // Check if price is not null
+			price = v.Price.InexactFloat64()
+		}
+
+		variants[i] = Variant{
+			ID:    v.ID,
+			Name:  v.Name,
+			SKU:   v.SKU,
+			Price: price,
+		}
+	}
+
+	// Convert the model product to a response product
+	response := Product{
+		Code:     product.Code,
+		Price:    product.Price.InexactFloat64(),
+		Variants: variants,
+		Category: Category{
+			ID:   product.Category.ID,
+			Code: product.Category.Code,
+			Name: product.Category.Name,
+		},
+	}
+
+	// Return the product as a JSON response
 	api.OKResponse(w, response)
 }
 
@@ -154,6 +208,10 @@ func (h *CatalogHandler) HandleCreateCategory(w http.ResponseWriter, r *http.Req
 	api.OKResponse(w, response)
 }
 
+func (s *CatalogService) GetAllCategories() ([]models.Category, error) {
+	return s.CategoryRepo.GetAllCategories()
+}
+
 func (s *CatalogService) CreateCategory(code, name string) (*models.Category, error) {
 	return s.CategoryRepo.CreateCategory(code, name)
 }
@@ -162,8 +220,8 @@ func (s *CatalogService) GetAllProducts(params models.ProductQueryParams) ([]mod
 	return s.ProductsRepo.GetAllProducts(params)
 }
 
-func (s *CatalogService) GetAllCategories() ([]models.Category, error) {
-	return s.CategoryRepo.GetAllCategories()
+func (s *CatalogService) GetProductByCode(code string) (*models.Product, error) {
+	return s.ProductsRepo.GetProductByCode(code)
 }
 
 // HELPERS

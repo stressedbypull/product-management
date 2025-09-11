@@ -21,6 +21,7 @@ type ProductQueryParams struct {
 
 type ProductInterface interface {
 	GetAllProducts(params ProductQueryParams) ([]Product, error)
+	GetProductByCode(code string) (*Product, error)
 }
 
 type ProductsRepository struct {
@@ -41,6 +42,14 @@ func (r *ProductsRepository) GetAllProducts(params ProductQueryParams) ([]Produc
 		return nil, r.handleGormError(err)
 	}
 	return products, nil
+}
+
+func (r *ProductsRepository) GetProductByCode(code string) (*Product, error) {
+	var product Product
+	if err := r.db.Preload("Variants").Preload("Category").Where("code = ?", code).First(&product).Error; err != nil {
+		return nil, r.handleGormError(err)
+	}
+	return &product, nil
 }
 
 // / Helpers
