@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -127,16 +128,34 @@ func (h *CatalogHandler) HandleRetrieveCategories(w http.ResponseWriter, r *http
 }
 
 func (h *CatalogHandler) HandleCreateCategory(w http.ResponseWriter, r *http.Request) {
-	_, err := h.repo.CreateCategory("", "")
+	var req struct {
+		Code string `json:"code"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	res, err := h.repo.CreateCategory(req.Code, req.Name)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	api.ErrorResponse(w, http.StatusNotImplemented, "not implemented")
+
+	// Return the newly created category as a JSON response
+	w.Header().Set("Content-Type", "application/json")
+
+	response := struct {
+		Category *models.Category `json:"category"`
+	}{
+		Category: res,
+	}
+	api.OKResponse(w, response)
 }
 
 func (s *CatalogService) CreateCategory(code, name string) (*models.Category, error) {
-	return nil, models.ErrNotImplemented
+	return s.CategoryRepo.CreateCategory(code, name)
 }
 
 func (s *CatalogService) GetAllProducts(params models.ProductQueryParams) ([]models.Product, error) {

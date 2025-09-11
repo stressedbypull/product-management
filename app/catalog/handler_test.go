@@ -6,13 +6,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/mytheresa/go-hiring-challenge/app/catalog/mocks"
 	"github.com/mytheresa/go-hiring-challenge/models"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestHandlerGetProducts(t *testing.T) {
@@ -264,13 +264,20 @@ func TestHandlerGetCategories(t *testing.T) {
 		})
 	})
 
-	t.Run("not implemented", func(t *testing.T) {
+	t.Run("Create category not implemented", func(t *testing.T) {
 		mockProduct := new(mocks.MockCatalogRepository)
 
-		mockProduct.On(CreateCategory, mock.Anything, mock.Anything).Return(nil, models.ErrNotImplemented)
+		// Setup mock expectations
+		mockProduct.On(CreateCategory, "C003", "Category 3").Return(nil, models.ErrNotImplemented)
+
 		handler := NewCatalogHandler(mockProduct)
 
-		req := httptest.NewRequest(http.MethodPost, "/categories", nil)
+		reqBody := strings.NewReader(`{"code":"C003","name":"Category 3"}`)
+
+		// Make request
+		req := httptest.NewRequest(http.MethodPost, "/categories", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+
 		recorder := httptest.NewRecorder()
 		handler.HandleCreateCategory(recorder, req)
 
@@ -282,6 +289,41 @@ func TestHandlerGetCategories(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&actualResp)
 		assert.NoError(t, err)
 		assert.Contains(t, actualResp.Error, "not implemented")
+
+		// Check that the mock was called
+		t.Cleanup(func() {
+			mockProduct.AssertExpectations(t)
+		})
+	})
+
+	t.Run("Create category success", func(t *testing.T) {
+		mockProduct := new(mocks.MockCatalogRepository)
+
+		newCategory := &models.Category{ID: 3, Code: "C003", Name: "Category 3"}
+		// Setup mock expectations
+		mockProduct.On(CreateCategory, "C003", "Category 3").Return(newCategory, nil)
+
+		handler := NewCatalogHandler(mockProduct)
+
+		reqBody := strings.NewReader(`{"code":"C003","name":"Category 3"}`)
+
+		// Make request
+		req := httptest.NewRequest(http.MethodPost, "/categories", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+
+		recorder := httptest.NewRecorder()
+		handler.HandleCreateCategory(recorder, req)
+
+		// Assert results - should be 200 OK
+		resp := recorder.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var actualResp struct {
+			Category *models.Category `json:"category"`
+		}
+		err := json.NewDecoder(resp.Body).Decode(&actualResp)
+		assert.NoError(t, err)
+		assert.Equal(t, newCategory, actualResp.Category)
 
 		// Check that the mock was called
 		t.Cleanup(func() {
